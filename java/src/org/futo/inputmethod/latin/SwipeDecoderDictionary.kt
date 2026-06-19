@@ -319,6 +319,7 @@ class SwipeDecoderDictionary(val context: Context, val locale: Locale) : Diction
     }
 
     var decoder: SwipeDecoder? = null
+    private var decoderUnavailable = false
 
     object BeamValues {
         const val shortBeam = 32
@@ -327,19 +328,36 @@ class SwipeDecoderDictionary(val context: Context, val locale: Locale) : Diction
         const val highestBeam = 300
     }
 
-    private fun getOrInitDecoder(): SwipeDecoder = decoder ?: run {
+    private fun disableDecoder(message: String, error: Throwable) {
+        decoder = null
+        decoderUnavailable = true
+        Log.e("SwipeDecoderDictionary", message, error)
+    }
+
+    private fun getOrInitDecoder(): SwipeDecoder? {
+        if (decoderUnavailable) return null
+        decoder?.let { return it }
+
         val swipeModelPath = getFilePath(context, SWIPE_MODEL)
 
-        val decoder = SwipeDecoder(
-            encoderPath = swipeModelPath,
-            beamWidth = BeamValues.highestBeam,
-            useExpansion = false, // ITrie contains expanded entries already
-        )
+        val decoder = try {
+            SwipeDecoder(
+                encoderPath = swipeModelPath,
+                beamWidth = BeamValues.highestBeam,
+                useExpansion = false, // ITrie contains expanded entries already
+            )
+        } catch (e: RuntimeException) {
+            disableDecoder("Disabling improved swipe decoder after initialization failed.", e)
+            return null
+        } catch (e: LinkageError) {
+            disableDecoder("Disabling improved swipe decoder because native initialization failed.", e)
+            return null
+        }
 
         this.decoder = decoder
         applyPendingLayoutInfo()
 
-        return decoder
+        return this.decoder
     }
 
     override fun getNextValidCodePoints(composedData: ComposedData?): ArrayList<Int> {
@@ -352,7 +370,7 @@ class SwipeDecoderDictionary(val context: Context, val locale: Locale) : Diction
     ): ArrayList<SuggestedWords.SuggestedWordInfo>? {
         if(true) return null
 
-        val decoder = getOrInitDecoder()
+        val decoder = getOrInitDecoder() ?: return null
         val wordsContext = ngramContext?.fullContext?.split(' ')?.takeLast(10) ?: emptyList()
         decoder.setContext(wordsContext)
 
@@ -446,7 +464,7 @@ class SwipeDecoderDictionary(val context: Context, val locale: Locale) : Diction
             ?.takeLast(10)
             ?: emptyList()
 
-        val decoder = getOrInitDecoder()
+        val decoder = getOrInitDecoder() ?: return null
         decoder.setContext(wordsContext)
         appliedTrieWeights = trieWeights
 
@@ -525,19 +543,25 @@ class SwipeDecoderDictionary(val context: Context, val locale: Locale) : Diction
     private fun applyPendingLayoutInfo() {
         decoder?.let { d ->
             pendingLayoutInfo?.let { pend ->
-                //Log.d("SwipeDecoderDictionary", "Applying layout info: $pend")
-                d.setMode(
-                    letters=pend.layout.letters,
-                    cx=pend.layout.xs.toFloatArray(),
-                    cy=pend.layout.ys.toFloatArray(),
-                    tries=pend.tries.toLongArray(),
-                    decoderPath=getFilePath(context, pend.layout.decoder),
-                    lmModelPath=getFilePath(context, pend.layout.lm),
-                    lmVocabPath=getFilePath(context, vocabFor(pend.layout.lm))
-                )
-                appliedScoring.value = d.scoring
-                appliedLayoutInfo = pend.layout
-                appliedTries = pend.tries.toLongArray()
+                try {
+                    //Log.d("SwipeDecoderDictionary", "Applying layout info: $pend")
+                    d.setMode(
+                        letters=pend.layout.letters,
+                        cx=pend.layout.xs.toFloatArray(),
+                        cy=pend.layout.ys.toFloatArray(),
+                        tries=pend.tries.toLongArray(),
+                        decoderPath=getFilePath(context, pend.layout.decoder),
+                        lmModelPath=getFilePath(context, pend.layout.lm),
+                        lmVocabPath=getFilePath(context, vocabFor(pend.layout.lm))
+                    )
+                    appliedScoring.value = d.scoring
+                    appliedLayoutInfo = pend.layout
+                    appliedTries = pend.tries.toLongArray()
+                } catch (e: RuntimeException) {
+                    disableDecoder("Disabling improved swipe decoder after mode setup failed.", e)
+                } catch (e: LinkageError) {
+                    disableDecoder("Disabling improved swipe decoder after native mode setup failed.", e)
+                }
             }
             pendingLayoutInfo = null
         }
