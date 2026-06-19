@@ -72,12 +72,27 @@ import org.futo.inputmethod.latin.uix.theme.presets.ClassicMaterialDark
 import org.futo.inputmethod.latin.uix.theme.presets.DefaultLightScheme
 import org.futo.inputmethod.latin.uix.theme.presets.DynamicDarkTheme
 import org.futo.inputmethod.latin.uix.theme.presets.DynamicLightTheme
+import org.futo.inputmethod.latin.uix.theme.presets.DynamicSystemAmoledTheme
 import org.futo.inputmethod.latin.uix.theme.presets.DynamicSystemTheme
 import org.futo.inputmethod.latin.uix.theme.presets.VoiceInputTheme
 
+private fun ThemeOption.autoThemePreviewOptions(): Pair<ThemeOption, ThemeOption>? = when (key) {
+    DynamicSystemTheme.key -> DynamicLightTheme to DynamicDarkTheme
+    DynamicSystemAmoledTheme.key -> DynamicLightTheme to AMOLEDDarkPurple
+    else -> null
+}
+
 @Composable
 fun ThemePreview(theme: ThemeOption, isSelected: Boolean = false, overrideName: String? = null, modifier: Modifier = Modifier, onClick: () -> Unit = { }) {
-    if(theme == DynamicSystemTheme) return DynamicThemePreview(isSelected, onClick)
+    theme.autoThemePreviewOptions()?.let { (lightTheme, darkTheme) ->
+        return DynamicThemePreview(
+            lightTheme = lightTheme,
+            darkTheme = darkTheme,
+            name = overrideName ?: stringResource(theme.name),
+            isSelected = isSelected,
+            onClick = onClick,
+        )
+    }
 
     val context = LocalContext.current
     val colors = remember(theme) { theme.obtainColors(context) }
@@ -223,13 +238,21 @@ fun ZipThemePreview(name: ZipThemes.ThemeFileName, isSelected: Boolean, modifier
 // Special case to demonstrate the light and dark mode
 @Preview
 @Composable
-fun DynamicThemePreview(isSelected: Boolean = false, onClick: () -> Unit = { }) {
+fun DynamicThemePreview(
+    lightTheme: ThemeOption = DynamicLightTheme,
+    darkTheme: ThemeOption = DynamicDarkTheme,
+    name: String? = null,
+    isSelected: Boolean = false,
+    onClick: () -> Unit = { },
+) {
+    val previewName = name ?: stringResource(DynamicSystemTheme.name)
+
     Box {
         ThemePreview(
-            DynamicLightTheme,
+            lightTheme,
             isSelected = isSelected,
             onClick = onClick,
-            overrideName = stringResource(DynamicSystemTheme.name),
+            overrideName = previewName,
             modifier = Modifier.clip(GenericShape { size, _ ->
                 val path = Path().apply {
                     moveTo(0f, 0f)
@@ -242,10 +265,10 @@ fun DynamicThemePreview(isSelected: Boolean = false, onClick: () -> Unit = { }) 
             })
         )
         ThemePreview(
-            DynamicDarkTheme,
+            darkTheme,
             isSelected = isSelected,
             onClick = onClick,
-            overrideName = stringResource(DynamicSystemTheme.name),
+            overrideName = previewName,
             modifier = Modifier.clip(GenericShape { size, _ ->
                 val path = Path().apply {
                     moveTo(size.width * 0.66f, 0f)
