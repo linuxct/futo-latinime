@@ -170,6 +170,7 @@
     <string name="theme_high_contrast_yellow">High Contrast Yellow</string>
     <string name="theme_dev">Construction Theme</string>
     <string name="theme_dynamic_system">Dynamic Auto</string>
+    <string name="theme_dynamic_system_amoled">Dynamic Auto AMOLED</string>
     <string name="theme_dynamic_dark">Dynamic Dark</string>
     <string name="theme_dynamic_light">Dynamic Light</string>
     <string name="theme_custom_named">Custom: %s</string>
